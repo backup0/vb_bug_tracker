@@ -1,0 +1,129 @@
+
+' SQLITE3 static library example
+' With this example, the generated executable does not require any external DLL files as the SQLITE3 code
+'  is linked statically into the executable.
+
+
+' This project contains the compiled OBJ files from the SQLITE3 project, compiled with MSVC
+' Please review the SQLITE3 licence:  https://www.sqlite.org/copyright.html
+' ------------------------------------------------------------------------------------------------------------------------
+' HOW TO COMPILE SQLITE3 STATIC LIBRARY YOURSELF:
+'   USE THE AMALGATION VERSION OF SQLITE ( contained in this project)
+'
+'   Open the MSVC Developer Prompt (MSVC > Tools menu > Command Line > Developer Command Prompt)
+'
+'       To compile 32-bit OBJ files:
+'       enter:    
+'           vcvars32.bat
+'           cl /c /Gw /Gy /GS- /DSQLITE_OMIT_SEH sqlite3.c /Fo"sqlite3_32.obj"
+'
+'       To compile 64-bit OBJ files:
+'       enter:    
+'           vcvars64.bat
+'           cl /c /Gw /Gy /GS- /DSQLITE_OMIT_SEH sqlite3.c /Fo"sqlite3_64.obj"
+'
+'   Afer compilation, import the sqlite3_32.obj and sqlite3_64.obj files into the Miscellaneous folder in this project
+' ------------------------------------------------------------------------------------------------------------------------
+ 
+
+#If Win64 Then
+    Import Library "/Miscellaneous/sqlite3_64.obj" As SQLITE3 Link "stdlib", "kernel32"
+#Else
+    Import Library "/Miscellaneous/sqlite3_32.obj" As SQLITE3 Link "stdlib", "kernel32"
+#End If
+
+Module MainModule
+    
+    ' FIXME filename is UTF8, not ANSI
+    Declare PtrSafe Function sqlite3_open CDecl Lib SQLITE3 (ByVal filename As String, ByRef ppDb As LongPtr) As Long
+    Declare PtrSafe Function sqlite3_exec CDecl Lib SQLITE3 (ByVal pDb As LongPtr, ByVal sql As String, ByVal exec_callback As LongPtr, ByVal udp As LongPtr, ByRef errmsg As LongPtr) As Long
+    Declare PtrSafe Function sqlite3_prepare_v2 CDecl Lib SQLITE3 (ByVal pDb As LongPtr, ByVal zSql As String, ByVal nByte As Long, ByRef ppStmt As LongPtr, ByVal pzTail As LongPtr) As Long
+    Declare PtrSafe Function sqlite3_step CDecl Lib SQLITE3 (ByVal ppStmt As LongPtr) As Long
+    Declare PtrSafe Function sqlite3_column_int CDecl Lib SQLITE3 (ByVal ppStmt As LongPtr, ByVal col As Long) As Long
+    Declare PtrSafe Function sqlite3_column_text CDecl Lib SQLITE3 (ByVal ppStmt As LongPtr, ByVal col As Long) As LongPtr
+                           
+    Private Declare PtrSafe Function MultiByteToWideChar Lib "kernel32" (ByVal codePage As Long, ByVal dwFlags As Long, ByVal lpMultiByteStr As LongPtr, ByVal cchMultiByte As Long, ByVal lpWideCharStr As LongPtr, ByVal cchWideChar As Long) As Long '                                                                                                                                                                                                                                                       
+
+    Private db As LongPtr
+    
+    
+    Public Function Utf8PtrToBSTR(ByVal Ptr As LongPtr) As String
+        Const cpUTF8 As Long = 65001
+        Dim numChars As Long = MultiByteToWideChar(cpUTF8, 0, Ptr, -1, 0, 0)
+        Dim out As String = Space$(numChars)
+
+        MultiByteToWideChar(cpUTF8, 0, Ptr, -1, StrPtr(out), numChars)
+        out = Replace(out, vbNullChar, "")
+        Return out
+    End Function
+    
+    Public Sub CreateDb()
+        
+        Dim retval As Long
+
+        retval = sqlite3_open(":memory:", db)
+        Debug.Assert retval = 0
+        
+        Dim query As String
+        query = "CREATE TABLE bugs (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT DEFAULT 'Untitled', text TEXT DEFAULT '', priority INTEGER DEFAULT 0);"
+        
+        Dim err_msg As LongPtr
+        retval = sqlite3_exec(db, query, 0, 0, err_msg)
+        Debug.Assert retval = 0
+        If err_msg <> 0 Then MsgBox(Utf8PtrToBSTR(err_msg))
+    
+    End Sub
+    
+    Public Sub AddBug(ByVal title As String, ByVal text As String, ByVal priority As Integer)
+        
+        Dim q1 As String
+        q1 = "INSERT INTO bugs(title, text, priority) values('{t}', '{c}', {p})"
+        
+        'need to use parameterize query, else -- special character will cause error, but
+        'I don't have time to do that.
+        
+        title = Replace(title, "'", "''")
+        text = Replace(text, "'", "''")
+        
+        Dim query As String
+        query = Replace(q1, "{t}", title)
+        query = Replace(query, "{c}", text)
+        query = Replace(query, "{p}", priority)
+        
+        Dim err_msg As LongPtr
+        Dim retVal As Long
+        retVal = sqlite3_exec(db, query, 0, 0, err_msg)
+        
+        If retVal <> 0 Then
+            MsgBox query
+        End If
+        
+    End Sub
+    
+    Public Sub LoadAllBugs(ByRef tb As TextBox)
+        
+        tb.Text = ""
+        tb.MultiLine = True
+        
+        Dim statement As LongPtr
+        Dim retVal As Long
+        retVal = sqlite3_prepare_v2(db, "SELECT * FROM bugs;", -1, statement, 0)
+        Debug.Assert retVal = 0
+        
+        Const SQLITE_ROW = 100
+        While sqlite3_step(statement) = SQLITE_ROW
+            Dim id As Long = sqlite3_column_int(statement, 0)
+            Dim TitlePtr As LongPtr = sqlite3_column_text(statement, 1)
+            Dim BugPtr As LongPtr = sqlite3_column_text(statement, 2)
+            Dim Priority As Integer = sqlite3_column_int(statement, 3)
+                        
+            Dim Title As String = Utf8PtrToBSTR(TitlePtr)
+            Dim Txt As String = Utf8PtrToBSTR(BugPtr)
+                    
+            Dim OutText As String
+            OutText = "# " & id & "  " & Title & " Priority: " & Priority & vbNewLine & Txt & vbNewLine & vbNewLine
+
+            tb.Text = tb.Text & OutText
+        Wend
+    End Sub
+End Module

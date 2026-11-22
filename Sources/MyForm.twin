@@ -1,0 +1,45 @@
+[Description("")]
+[FormDesignerId("96D6CEEF-BAB9-4CA8-B743-18C8697E96D1")]
+[PredeclaredId]
+Class MyForm
+
+	Sub New()
+	End Sub
+    
+    
+    
+    Private Sub Option1_Click()
+        
+    End Sub
+    
+    Private Sub Low_Click()
+        
+    End Sub
+    
+    Private Sub ListView1_BeforeLabelEdit(Cancel As Boolean)
+        'ListView1.Ad
+    End Sub
+    
+    Private Sub Command1_Click()
+        MainModule.AddBug(TxtTitle.Text, TxtBug.Text, ComboPriority.ListIndex)
+        MainModule.LoadAllBugs(TextAllBugs)
+    End Sub
+    
+    Private Sub Label2_Click()
+        
+    End Sub
+    
+    Private Sub Combo1_Change()
+        
+    End Sub
+    
+    Private Sub Form_Load()
+        ComboPriority.ListIndex = 0
+        MainModule.CreateDb()
+    End Sub
+    
+    Private Sub BtnReload_Click()
+        MainModule.LoadAllBugs(TextAllBugs)
+    End Sub
+    
+End Class
